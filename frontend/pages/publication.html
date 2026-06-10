@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Publicación - Emprendedores IPN</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <style>
+    .pub-detail img { width: 100%; max-height: 320px; object-fit: cover; border-radius: var(--radius); margin-bottom: 12px; }
+    .pub-detail .precio-grande { font-size: 28px; color: var(--primary); font-weight: 800; }
+    .pub-detail .section { background: var(--white); padding: 14px; border-radius: var(--radius); margin-bottom: 12px; box-shadow: var(--shadow); }
+    .pub-detail .section-label { font-size: 12px; color: var(--text-light); font-weight: 700; text-transform: uppercase; margin-bottom: 6px; }
+    .action-row { display: flex; gap: 8px; margin: 12px 0; }
+    .action-row button { flex: 1; }
+    .comment { background: var(--bg); padding: 10px; border-radius: 8px; margin-bottom: 8px; }
+    .comment .author { font-weight: 600; font-size: 13px; }
+    .comment .text { font-size: 14px; margin-top: 2px; }
+    .comment .reply { margin-left: 20px; margin-top: 6px; background: var(--white); border: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div id="topBar"></div>
+    <div class="main-content pub-detail" id="content">
+      <div class="loader">Cargando...</div>
+    </div>
+    <div id="bottomNav"></div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/components.js"></script>
+  <script>
+    Auth.requireLogin();
+    document.getElementById("topBar").innerHTML = renderTopBar(Auth.getRole());
+    document.getElementById("bottomNav").innerHTML = renderBottomNav();
+    bindRoleSwitcher();
+
+    const params = new URLSearchParams(location.search);
+    const pubId = params.get("id");
+    const currentUser = Auth.getUser();
+
+    async function cargar() {
+      const cont = document.getElementById("content");
+      try {
+        const p = await api.get(`/api/publications/${pubId}`);
+        const comentarios = await api.get(`/api/comments/publication/${pubId}`);
+        const esDueño = p.user_id === currentUser.id;
+
+        cont.innerHTML = `
+          ${p.imagen_url ? `<img src="http://localhost:8000${p.imagen_url}" alt="">` : ""}
+          <h2 style="margin-bottom:4px;">${p.titulo}</h2>
+          <div class="precio-grande">$${p.precio.toFixed(2)}</div>
+          <span class="categoria" style="display:inline-block;background:var(--bg);color:var(--primary);font-size:11px;font-weight:600;padding:4px 10px;border-radius:12px;margin-top:6px;">${CATEGORIAS[p.categoria]?.nombre}</span>
+
+          <div class="section" style="margin-top:14px;">
+            <div class="section-label">Vendedor</div>
+            <a href="profile.html?id=${p.user_id}" style="color:var(--primary);text-decoration:none;font-weight:600;">
+              ${p.vendedor_nombre} ${p.vendedor_apellido}
+            </a>
+          </div>
+
+          <div class="section">
+            <div class="section-label">Contacto</div>
+            <div>${p.contacto}</div>
+          </div>
+
+          <div class="section">
+            <div class="section-label">Descripción</div>
+            <div>${p.descripcion}</div>
+          </div>
+
+          <div class="action-row">
+            ${!esDueño ? `<button class="btn btn-secondary" id="btnHeart">❤️ Me gusta</button>` : ""}
+            ${!esDueño ? `<button class="btn btn-danger" id="btnReport">⚠️ Reportar</button>` : ""}
+            ${esDueño ? `<button class="btn btn-danger" id="btnDelete">Eliminar</button>` : ""}
+          </div>
+
+          <h3 class="section-title" style="font-size:16px;">Comentarios</h3>
+          <div class="card">
+            <textarea id="commentInput" placeholder="Escribe un comentario..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;font-family:inherit;"></textarea>
+            <button class="btn btn-primary btn-block" style="margin-top:8px;" id="btnComment">Comentar</button>
+          </div>
+          <div id="comentarios"></div>
+        `;
+
+        renderComentarios(comentarios, p.user_id);
+
+        const btnHeart = document.getElementById("btnHeart");
+        if (btnHeart) btnHeart.onclick = async () => {
+          try {
+            await api.post(`/api/favorites/publication/${pubId}`, {});
+            alert("¡Agregado a tus favoritos!");
+          } catch (err) { alert(err.message); }
+        };
+
+        const btnReport = document.getElementById("btnReport");
+        if (btnReport) btnReport.onclick = async () => {
+          if (!confirm("¿Reportar esta publicación?")) return;
+          try {
+            await api.post("/api/reports/", { publication_id: parseInt(pubId) });
+            alert("Reporte enviado al administrador.");
+          } catch (err) { alert(err.message); }
+        };
+
+        const btnDelete = document.getElementById("btnDelete");
+        if (btnDelete) btnDelete.onclick = async () => {
+          if (!confirm("¿Eliminar esta publicación?")) return;
+          try {
+            await api.delete(`/api/publications/${pubId}`);
+            window.location.href = "feed.html";
+          } catch (err) { alert(err.message); }
+        };
+
+        document.getElementById("btnComment").onclick = async () => {
+          const texto = document.getElementById("commentInput").value.trim();
+          if (!texto) return;
+          try {
+            await api.post(`/api/comments/publication/${pubId}`, { contenido: texto });
+            cargar();
+          } catch (err) { alert(err.message); }
+        };
+
+      } catch (err) {
+        cont.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+      }
+    }
+
+    function renderComentarios(comentarios, dueñoId) {
+      const cont = document.getElementById("comentarios");
+      const padres = comentarios.filter(c => !c.parent_id);
+      cont.innerHTML = padres.map(c => {
+        const respuestas = comentarios.filter(r => r.parent_id === c.id);
+        const esDueño = currentUser.id === dueñoId;
+        return `
+          <div class="comment">
+            <div class="author">${c.user_nombre} ${c.user_apellido}</div>
+            <div class="text">${c.contenido}</div>
+            <div style="margin-top:6px;display:flex;gap:8px;">
+              ${esDueño ? `<button onclick="responderComentario(${c.id})" style="background:none;border:none;color:var(--primary);font-size:12px;cursor:pointer;">Responder</button>` : ""}
+              <button onclick="reportarComentario(${c.id})" style="background:none;border:none;color:var(--danger);font-size:12px;cursor:pointer;">Reportar</button>
+            </div>
+            ${respuestas.map(r => `
+              <div class="comment reply">
+                <div class="author">${r.user_nombre} ${r.user_apellido} (respuesta)</div>
+                <div class="text">${r.contenido}</div>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }).join("");
+    }
+
+    async function responderComentario(parentId) {
+      const texto = prompt("Tu respuesta:");
+      if (!texto) return;
+      try {
+        await api.post(`/api/comments/publication/${pubId}`, { contenido: texto, parent_id: parentId });
+        cargar();
+      } catch (err) { alert(err.message); }
+    }
+
+    async function reportarComentario(commentId) {
+      if (!confirm("¿Reportar este comentario?")) return;
+      try {
+        await api.post("/api/reports/", { comment_id: commentId });
+        alert("Reporte enviado.");
+      } catch (err) { alert(err.message); }
+    }
+
+    cargar();
+  </script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Favoritos - Emprendedores IPN</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <style>
+    .fav-item {
+      background: var(--white);
+      padding: 14px;
+      border-radius: var(--radius);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+    }
+    .fav-avatar {
+      width: 50px; height: 50px;
+      background: var(--primary);
+      color: var(--white);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700;
+    }
+    .fav-info { flex: 1; }
+    .fav-name { font-weight: 600; }
+    .fav-email { font-size: 12px; color: var(--text-light); }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div id="topBar"></div>
+    <div class="main-content">
+      <h2 class="section-title">Mis emprendedores favoritos</h2>
+      <div id="favs" class="loader">Cargando...</div>
+    </div>
+    <div id="bottomNav"></div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/components.js"></script>
+  <script>
+    Auth.requireLogin();
+    document.getElementById("topBar").innerHTML = renderTopBar(Auth.getRole());
+    document.getElementById("bottomNav").innerHTML = renderBottomNav("favorites");
+    bindRoleSwitcher();
+
+    async function cargar() {
+      const cont = document.getElementById("favs");
+      try {
+        const favs = await api.get("/api/users/me/favorites");
+        if (favs.length === 0) {
+          cont.innerHTML = `<p style="text-align:center;color:var(--text-light);padding:40px;">Aún no tienes emprendedores favoritos.<br>Dales corazón a sus publicaciones.</p>`;
+          return;
+        }
+        cont.classList.remove("loader");
+        cont.innerHTML = "";
+        favs.forEach(u => {
+          const item = document.createElement("div");
+          item.className = "fav-item";
+          item.onclick = () => window.location.href = `profile.html?id=${u.id}`;
+          item.innerHTML = `
+            <div class="fav-avatar">${u.nombre[0]}${u.apellido[0]}</div>
+            <div class="fav-info">
+              <div class="fav-name">${u.nombre} ${u.apellido}</div>
+              <div class="fav-email">${u.email}</div>
+            </div>
+            <button class="btn-danger" style="background:none;border:none;color:var(--danger);font-size:20px;cursor:pointer;" onclick="event.stopPropagation();quitar(${u.id})">🗑️</button>
+          `;
+          cont.appendChild(item);
+        });
+      } catch (err) {
+        cont.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+      }
+    }
+
+    async function quitar(id) {
+      if (!confirm("¿Quitar de favoritos?")) return;
+      try {
+        await api.delete(`/api/favorites/emprendedor/${id}`);
+        cargar();
+      } catch (err) { alert(err.message); }
+    }
+
+    cargar();
+  </script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inicio - Emprendedores IPN</title>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <div id="topBar"></div>
+    <div class="main-content">
+      <h2 class="section-title">Publicaciones recientes</h2>
+      <div id="publications" class="loader">Cargando...</div>
+    </div>
+    <div id="bottomNav"></div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/components.js"></script>
+  <script>
+    Auth.requireLogin();
+    document.getElementById("topBar").innerHTML = renderTopBar(Auth.getRole());
+    document.getElementById("bottomNav").innerHTML = renderBottomNav("feed");
+    bindRoleSwitcher();
+
+    async function cargarPublicaciones() {
+      const cont = document.getElementById("publications");
+      try {
+        const pubs = await api.get("/api/publications/");
+        if (pubs.length === 0) {
+          cont.innerHTML = `<p style="text-align:center;color:var(--text-light);padding:40px;">Aún no hay publicaciones.</p>`;
+          return;
+        }
+        cont.innerHTML = "";
+        cont.classList.remove("loader");
+        pubs.forEach(p => {
+          const card = document.createElement("div");
+          card.className = "publication-card";
+          card.onclick = () => window.location.href = `publication.html?id=${p.id}`;
+          card.innerHTML = `
+            ${p.imagen_url ? `<img src="http://localhost:8000${p.imagen_url}" alt="">` : ""}
+            <div class="info">
+              <div class="titulo">${p.titulo}</div>
+              <div class="precio">$${p.precio.toFixed(2)}</div>
+              <div class="vendedor">Por ${p.vendedor_nombre} ${p.vendedor_apellido}</div>
+              <span class="categoria">${CATEGORIAS[p.categoria]?.nombre || p.categoria}</span>
+            </div>
+          `;
+          cont.appendChild(card);
+        });
+      } catch (err) {
+        cont.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+      }
+    }
+    cargarPublicaciones();
+  </script>
+</body>
+</html>

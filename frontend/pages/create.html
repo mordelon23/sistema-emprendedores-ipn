@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nueva publicación - Emprendedores IPN</title>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <div id="topBar"></div>
+    <div class="main-content">
+      <h2 class="section-title">Nueva publicación</h2>
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">
+        Tu publicación estará activa por 24 horas. Máximo 3 al día.
+      </p>
+
+      <div id="alert"></div>
+
+      <form id="pubForm">
+        <div class="input-group">
+          <label>Título</label>
+          <input type="text" id="titulo" required maxlength="150">
+        </div>
+        <div class="input-group">
+          <label>Categoría</label>
+          <select id="categoria" required>
+            <option value="">Selecciona...</option>
+            <option value="dulces">Dulces</option>
+            <option value="comida">Comida</option>
+            <option value="accesorios">Accesorios</option>
+            <option value="materiales_electronicos">Materiales electrónicos</option>
+            <option value="articulos_electronicos">Artículos electrónicos</option>
+            <option value="otros">Otros</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>Precio (MXN)</label>
+          <input type="number" id="precio" step="0.01" min="0" required>
+        </div>
+        <div class="input-group">
+          <label>Descripción del proyecto</label>
+          <textarea id="descripcion" required maxlength="1000" rows="4"></textarea>
+        </div>
+        <div class="input-group">
+          <label>Contacto (teléfono / redes sociales)</label>
+          <input type="text" id="contacto" required>
+        </div>
+        <div class="input-group">
+          <label>Imagen (opcional)</label>
+          <input type="file" id="imagen" accept="image/png,image/jpeg,image/webp">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Publicar</button>
+      </form>
+    </div>
+    <div id="bottomNav"></div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/components.js"></script>
+  <script>
+    Auth.requireLogin();
+    document.getElementById("topBar").innerHTML = renderTopBar("emprendedor");
+    Auth.setRole("emprendedor");
+    document.getElementById("bottomNav").innerHTML = renderBottomNav("create");
+    bindRoleSwitcher();
+
+    document.getElementById("pubForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const alertBox = document.getElementById("alert");
+      alertBox.innerHTML = "";
+
+      const fd = new FormData();
+      fd.append("titulo", document.getElementById("titulo").value);
+      fd.append("descripcion", document.getElementById("descripcion").value);
+      fd.append("precio", document.getElementById("precio").value);
+      fd.append("contacto", document.getElementById("contacto").value);
+      fd.append("categoria", document.getElementById("categoria").value);
+      const img = document.getElementById("imagen").files[0];
+      if (img) fd.append("imagen", img);
+
+      try {
+        await api.postForm("/api/publications/", fd);
+        alertBox.innerHTML = `<div class="alert alert-success">¡Publicación creada!</div>`;
+        setTimeout(() => window.location.href = "feed.html", 1000);
+      } catch (err) {
+        alertBox.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+      }
+    });
+  </script>
+</body>
+</html>

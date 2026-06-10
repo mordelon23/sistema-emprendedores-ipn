@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Emprendedores IPN</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <style>
+    .tabs {
+      display: flex;
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 4px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+    .tabs button {
+      flex: 1;
+      border: none;
+      background: transparent;
+      padding: 10px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--text-light);
+    }
+    .tabs button.active { background: var(--primary); color: var(--white); }
+    .admin-item {
+      background: var(--white);
+      padding: 12px;
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+      box-shadow: var(--shadow);
+    }
+    .admin-actions { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .admin-actions button {
+      font-size: 12px;
+      padding: 6px 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div id="topBar"></div>
+    <div class="main-content">
+      <h2 class="section-title">Panel de administración</h2>
+
+      <div class="tabs">
+        <button class="active" data-tab="reports">Reportes</button>
+        <button data-tab="users">Usuarios</button>
+        <button data-tab="sanctions">Sanciones</button>
+      </div>
+
+      <div id="tabContent" class="loader">Cargando...</div>
+    </div>
+    <div id="bottomNav"></div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/components.js"></script>
+  <script>
+    Auth.requireLogin();
+    const user = Auth.getUser();
+    if (!user.is_admin) {
+      alert("No tienes permisos de administrador.");
+      window.location.href = "feed.html";
+    }
+    document.getElementById("topBar").innerHTML = renderTopBar(Auth.getRole());
+    document.getElementById("bottomNav").innerHTML = renderBottomNav("admin");
+    bindRoleSwitcher();
+
+    const tabs = document.querySelectorAll(".tabs button");
+    tabs.forEach(t => t.onclick = () => {
+      tabs.forEach(x => x.classList.remove("active"));
+      t.classList.add("active");
+      cargarTab(t.dataset.tab);
+    });
+
+    async function cargarTab(tab) {
+      const cont = document.getElementById("tabContent");
+      cont.innerHTML = "<div class='loader'>Cargando...</div>";
+      try {
+        if (tab === "reports") await cargarReportes(cont);
+        else if (tab === "users") await cargarUsuarios(cont);
+        else if (tab === "sanctions") await cargarSanciones(cont);
+      } catch (err) {
+        cont.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+      }
+    }
+
+    async function cargarReportes(cont) {
+      const reps = await api.get("/api/reports/");
+      if (reps.length === 0) {
+        cont.innerHTML = `<p style="text-align:center;color:var(--text-light);padding:20px;">No hay reportes pendientes.</p>`;
+        return;
+      }
+      cont.innerHTML = "";
+      for (const r of reps) {
+        let detalle = "";
+        if (r.publication_id) {
+          detalle = `<a href="publication.html?id=${r.publication_id}" style="color:var(--primary);">Ver publicación #${r.publication_id}</a>`;
+        } else if (r.comment_id) {
+          detalle = `Comentario #${r.comment_id}`;
+        }
+        const item = document.createElement("div");
+        item.className = "admin-item";
+        item.innerHTML = `
+          <div style="font-size:13px;color:var(--text-light);">Reporte #${r.id} · ${new Date(r.created_at).toLocaleString()}</div>
+          <div style="margin-top:6px;">Reportador: usuario #${r.reportador_id}</div>
+          <div style="margin-top:4px;">${detalle}</div>
+          <div class="admin-actions">
+            ${r.publication_id ? `<button style="background:var(--danger);color:#fff;" onclick="eliminarPub(${r.publication_id},${r.id})">Eliminar publicación</button>` : ""}
+            ${r.comment_id ? `<button style="background:var(--danger);color:#fff;" onclick="eliminarCom(${r.comment_id},${r.id})">Eliminar comentario</button>` : ""}
+            <button style="background:var(--success);color:#fff;" onclick="resolver(${r.id})">Marcar resuelto</button>
+          </div>
+        `;
+        cont.appendChild(item);
+      }
+    }
+
+    async function cargarUsuarios(cont) {
+      const users = await api.get("/api/admin/users");
+      cont.innerHTML = "";
+      users.forEach(u => {
+        const item = document.createElement("div");
+        item.className = "admin-item";
+        item.innerHTML = `
+          <div style="font-weight:600;">${u.nombre} ${u.apellido} ${u.is_admin ? '<span class="categoria">ADMIN</span>' : ''}</div>
+          <div style="font-size:13px;color:var(--text-light);">${u.email}</div>
+          <div class="admin-actions">
+            ${!u.is_admin ? `<button style="background:var(--primary);color:#fff;" onclick="promover(${u.id})">Promover a admin</button>` : ""}
+            <button style="background:var(--secondary);color:#fff;" onclick="sancionar(${u.id})">Sancionar</button>
+            <button style="background:var(--danger);color:#fff;" onclick="eliminarUsuario(${u.id})">Eliminar</button>
+          </div>
+        `;
+        cont.appendChild(item);
+      });
+    }
+
+    async function cargarSanciones(cont) {
+      const sancs = await api.get("/api/admin/sanctions");
+      if (sancs.length === 0) {
+        cont.innerHTML = `<p style="text-align:center;color:var(--text-light);padding:20px;">No hay sanciones activas.</p>`;
+        return;
+      }
+      cont.innerHTML = "";
+      sancs.forEach(s => {
+        const item = document.createElement("div");
+        item.className = "admin-item";
+        item.innerHTML = `
+          <div style="font-weight:600;">Usuario #${s.user_id}</div>
+          <div style="font-size:13px;">Motivo: ${s.motivo}</div>
+          <div style="font-size:12px;color:var(--text-light);">Vence: ${new Date(s.expires_at).toLocaleString()}</div>
+        `;
+        cont.appendChild(item);
+      });
+    }
+
+    async function eliminarPub(pubId, repId) {
+      if (!confirm("¿Eliminar publicación?")) return;
+      await api.delete(`/api/publications/${pubId}`);
+      await api.put(`/api/reports/${repId}/resolve`, {});
+      cargarTab("reports");
+    }
+
+    async function eliminarCom(comId, repId) {
+      if (!confirm("¿Eliminar comentario?")) return;
+      await api.delete(`/api/comments/${comId}`);
+      await api.put(`/api/reports/${repId}/resolve`, {});
+      cargarTab("reports");
+    }
+
+    async function resolver(repId) {
+      await api.put(`/api/reports/${repId}/resolve`, {});
+      cargarTab("reports");
+    }
+
+    async function promover(userId) {
+      if (!confirm("¿Convertir en administrador?")) return;
+      await api.put(`/api/admin/users/${userId}/promote`, {});
+      cargarTab("users");
+    }
+
+    async function eliminarUsuario(userId) {
+      if (!confirm("¿Eliminar cuenta? Esta acción NO se puede deshacer.")) return;
+      try {
+        await api.delete(`/api/admin/users/${userId}`);
+        cargarTab("users");
+      } catch (err) { alert(err.message); }
+    }
+
+    async function sancionar(userId) {
+      const motivo = prompt("Motivo de la sanción:");
+      if (!motivo) return;
+      const dias = parseInt(prompt("¿Cuántos días?"));
+      if (!dias || dias <= 0) return;
+      try {
+        await api.post("/api/admin/sanctions", { user_id: userId, motivo, dias });
+        alert("Sanción aplicada.");
+      } catch (err) { alert(err.message); }
+    }
+
+    cargarTab("reports");
+  </script>
+</body>
+</html>

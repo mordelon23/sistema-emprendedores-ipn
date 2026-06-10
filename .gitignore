@@ -1,0 +1,24 @@
+# Entorno virtual
+venv/
+env/
+
+# Variables de entorno (¡contiene contraseñas!)
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# VS Code
+.vscode/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Imágenes subidas
+backend/app/static/uploads/*
+!backend/app/static/uploads/.gitkeep

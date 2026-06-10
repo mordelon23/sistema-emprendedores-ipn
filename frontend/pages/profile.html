@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Perfil - Emprendedores IPN</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <style>
+    .profile-header {
+      background: var(--white);
+      padding: 24px 16px;
+      text-align: center;
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+    }
+    .avatar {
+      width: 80px; height: 80px;
+      background: var(--primary);
+      color: var(--white);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; font-weight: 700;
+      margin: 0 auto 12px;
+    }
+    .profile-name { font-size: 20px; font-weight: 700; }
+    .profile-email { color: var(--text-light); font-size: 14px; margin-top: 4px; }
+    .badge {
+      display: inline-block; background: var(--primary); color: var(--white);
+      font-size: 11px; font-weight: 600; padding: 4px 10px;
+      border-radius: 12px; margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div id="topBar"></div>
+    <div class="main-content" id="content">
+      <div class="loader">Cargando...</div>
+    </div>
+    <div id="bottomNav"></div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/components.js"></script>
+  <script>
+    Auth.requireLogin();
+    document.getElementById("topBar").innerHTML = renderTopBar(Auth.getRole());
+    document.getElementById("bottomNav").innerHTML = renderBottomNav("profile");
+    bindRoleSwitcher();
+
+    const params = new URLSearchParams(location.search);
+    const currentUser = Auth.getUser();
+    const userId = params.get("id") || currentUser.id;
+    const esMiPerfil = parseInt(userId) === currentUser.id;
+
+    async function cargar() {
+      const cont = document.getElementById("content");
+      try {
+        const user = await api.get(`/api/users/${userId}`);
+        const pubs = await api.get(`/api/users/${userId}/publications`);
+
+        cont.innerHTML = `
+          <div class="profile-header">
+            <div class="avatar">${user.nombre[0]}${user.apellido[0]}</div>
+            <div class="profile-name">${user.nombre} ${user.apellido}</div>
+            <div class="profile-email">${user.email}</div>
+            ${user.is_admin ? '<span class="badge">Administrador</span>' : ""}
+          </div>
+
+          ${esMiPerfil ? `
+            <button class="btn btn-danger btn-block" onclick="Auth.logout()" style="margin-bottom:16px;">Cerrar sesión</button>
+          ` : ""}
+
+          <h2 class="section-title">Publicaciones activas</h2>
+          <div id="pubs"></div>
+        `;
+
+        const cont2 = document.getElementById("pubs");
+        if (pubs.length === 0) {
+          cont2.innerHTML = `<p style="text-align:center;color:var(--text-light);padding:20px;">Sin publicaciones activas.</p>`;
+          return;
+        }
+        pubs.forEach(p => {
+          const card = document.createElement("div");
+          card.className = "publication-card";
+          card.onclick = () => window.location.href = `publication.html?id=${p.id}`;
+          card.innerHTML = `
+            ${p.imagen_url ? `<img src="http://localhost:8000${p.imagen_url}" alt="">` : ""}
+            <div class="info">
+              <div class="titulo">${p.titulo}</div>
+              <div class="precio">$${p.precio.toFixed(2)}</div>
+              <span class="categoria">${CATEGORIAS[p.categoria]?.nombre}</span>
+            </div>
+          `;
+          cont2.appendChild(card);
+        });
+
+      } catch (err) {
+        cont.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+      }
+    }
+    cargar();
+  </script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Categorías - Emprendedores IPN</title>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <div id="topBar"></div>
+    <div class="main-content">
+      <h2 class="section-title">Categorías</h2>
+      <div class="categories-grid" id="cats"></div>
+      <div id="filtered" style="margin-top:16px;"></div>
+    </div>
+    <div id="bottomNav"></div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/components.js"></script>
+  <script>
+    Auth.requireLogin();
+    document.getElementById("topBar").innerHTML = renderTopBar(Auth.getRole());
+    document.getElementById("bottomNav").innerHTML = renderBottomNav("categories");
+    bindRoleSwitcher();
+
+    const cats = document.getElementById("cats");
+    Object.entries(CATEGORIAS).forEach(([key, info]) => {
+      const item = document.createElement("a");
+      item.href = "#";
+      item.className = "category-item";
+      item.innerHTML = `<span class="icon">${info.icon}</span><span class="name">${info.nombre}</span>`;
+      item.onclick = (e) => { e.preventDefault(); cargarCategoria(key, info.nombre); };
+      cats.appendChild(item);
+    });
+
+    async function cargarCategoria(key, nombre) {
+      const cont = document.getElementById("filtered");
+      cont.innerHTML = `<h2 class="section-title">${nombre}</h2><div class="loader">Cargando...</div>`;
+      try {
+        const pubs = await api.get(`/api/publications/?categoria=${key}`);
+        if (pubs.length === 0) {
+          cont.innerHTML = `<h2 class="section-title">${nombre}</h2><p style="text-align:center;color:var(--text-light);padding:20px;">No hay publicaciones en esta categoría.</p>`;
+          return;
+        }
+        cont.innerHTML = `<h2 class="section-title">${nombre}</h2>`;
+        pubs.forEach(p => {
+          const card = document.createElement("div");
+          card.className = "publication-card";
+          card.onclick = () => window.location.href = `publication.html?id=${p.id}`;
+          card.innerHTML = `
+            ${p.imagen_url ? `<img src="http://localhost:8000${p.imagen_url}" alt="">` : ""}
+            <div class="info">
+              <div class="titulo">${p.titulo}</div>
+              <div class="precio">$${p.precio.toFixed(2)}</div>
+              <div class="vendedor">Por ${p.vendedor_nombre} ${p.vendedor_apellido}</div>
+            </div>
+          `;
+          cont.appendChild(card);
+        });
+      } catch (err) {
+        cont.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>
